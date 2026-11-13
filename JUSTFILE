@@ -18,10 +18,17 @@ configure preset="release":
 build preset="release": (configure preset)
     cmake --build --preset {{preset}}
 
+debug: (build "debug")
+
 # ---- run -----------------------------------------------------------------
 
 run preset="release": (build preset)
     sudo build/{{preset}}/kestrel
+
+# ---- debug -----------------------------------------------------------------
+
+find-error preset="debug": (build preset)
+    sudo gdb -batch -ex run -ex backtrace -ex quit build/{{preset}}/kestrel
 
 # ---- housekeeping -----------------------------------------------------------------
 
