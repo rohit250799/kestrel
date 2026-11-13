@@ -7,7 +7,7 @@
 #include "message_type_enums.h"
 
 namespace kestrel::itch_stat_json {
-    
+
 struct stock_directory_message {
     char Message_type;
     short stock_locate;
@@ -222,7 +222,7 @@ struct cross_trade_message {
     char stock[8];
     int cross_price;
     int64_t match_number;
-    
+
 };
 
 struct broken_trade_message {
@@ -273,6 +273,16 @@ struct direct_listing_with_capital_raise_message {
     int upper_price_range_collar;
 };
 
+struct Raw_data_for_json {
+    std::array<uint16_t, 26> existing_message_frequencies_raw {};
+    std::array<uint8_t, 6> first_timestamp;
+    std::array<uint8_t, 6> last_timestamp;
+    unsigned long total_bytes;
+    unsigned int total_anomalies_count;
+    unsigned int total_messages;
+    unsigned int operational_halt_message_count;
+};
+
 using message_record_type = std::variant<system_event_message, stock_directory_message, stock_trading_action_message, reg_sho_registration_message, market_participant_position_message, mwcb_decline_level_message, mwcb_status_message, IPO_Quoting_period_update_message, luld_action_collar_message, operation_halt_message, add_order_no_mpid_attribution_message, add_order_mpid_attribution_message, add_order_order_executed_message, add_order_order_executed_with_price_message, order_cancel_message, order_delete_message, order_replace_message, trade_message, cross_trade_message, broken_trade_message, noii_message, retail_interest_message, direct_listing_with_capital_raise_message>;
 
 struct binary_file_message {
@@ -287,21 +297,25 @@ class Itch_Stat_JSON {
     Itch_Stat_JSON();
     ~Itch_Stat_JSON();
     char* mmap_extracted_binary_file(int fd);
-    void check_for_anomalies();
     unsigned int get_anomalies_count();
     unsigned int get_total_messages_count();
+    unsigned int get_operational_halt_message_type_count();
+    std::array<uint16_t, 26>& get_acceptable_message_types_array();
+    unsigned long get_total_bytes_count();
     void parse_mmap_binary_file(int fd);
     long get_total_bytes();
-    std::string convert_to_JSON() const;
+    std::string convert_to_JSON(const Raw_data_for_json& raw_data) const;
 
     private:
     std::unordered_map<char, unsigned int> count_per_messge_type;
     std::unordered_set<int> acceptable_message_length;
-    std::array<uint8_t, 6> first_timestamp;
-    std::array<uint8_t, 6> last_timestamp;
+    std::array<uint16_t, 26> acceptable_message_types {};
+    std::array<uint8_t, 6> first_timestamp {};
+    std::array<uint8_t, 6> last_timestamp {};
     unsigned long total_bytes;
     unsigned int total_anomalies_count;
     unsigned int total_messages;
+    unsigned int operational_halt_message_count;
     int fd;
 };
 
