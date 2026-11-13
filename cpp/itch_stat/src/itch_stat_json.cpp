@@ -2,28 +2,18 @@
 #include "kestrel/Errorcode.h"
 #include <array>
 #include <cassert>
-#include <cerrno>
+#include <iostream>
+#include <sstream>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
-#include <sstream>
-#include <iostream>
-#include <string_view>
 #include <sys/select.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <cerrno>
 #include <sys/stat.h>
 #include <sys/mman.h>
 
 namespace kestrel::itch_stat_json {
-
-void check_orphan_cancels_or_executes() {
-    //receiving an order cancel (X) or order delete (D) or
-    // Order Execute (E / C) message for a order reference number that
-    // was never explicitly added
-}
 
 int open_binary_file_and_get_descriptor(const char* binary_file_path="/media/coding/Quant_projects/kestrel/12302019.NASDAQ_ITCH50") {
     int fd = open(binary_file_path, O_RDONLY);
@@ -60,6 +50,12 @@ Itch_Stat_JSON::Itch_Stat_JSON() {
     total_messages = {0};
     first_timestamp.fill(0xFF);
     last_timestamp.fill(0x00);
+    acceptable_message_types[6] = -1;
+    acceptable_message_types[12] = -1;
+    acceptable_message_types[19] = -1;
+    acceptable_message_types[25] = -1;
+    operational_halt_message_count = {0};
+    total_bytes = {0};
 }
 
 unsigned int Itch_Stat_JSON::get_anomalies_count() {
@@ -68,6 +64,18 @@ unsigned int Itch_Stat_JSON::get_anomalies_count() {
 
 unsigned int Itch_Stat_JSON::get_total_messages_count() {
     return total_messages;
+}
+
+unsigned int Itch_Stat_JSON::get_operational_halt_message_type_count() {
+    return operational_halt_message_count;
+}
+
+std::array<uint16_t, 26>& Itch_Stat_JSON::get_acceptable_message_types_array() {
+    return acceptable_message_types;
+}
+
+unsigned long Itch_Stat_JSON::get_total_bytes_count() {
+    return total_bytes;
 }
 
 char* Itch_Stat_JSON::mmap_extracted_binary_file(int fd=open_binary_file_and_get_descriptor()) {
@@ -80,6 +88,44 @@ char* Itch_Stat_JSON::mmap_extracted_binary_file(int fd=open_binary_file_and_get
         throw kestrel::itch_stat_json::Error_codes::System_Error;
     }
     return addr;
+}
+
+std::string Itch_Stat_JSON::convert_to_JSON( const Raw_data_for_json& raw_data) const {
+    std::ostringstream oss;
+    assert(!raw_data.existing_message_frequencies_raw.empty() && "Assertion failed: Array is empty \n");
+    oss << "{\n"
+        << "  \"first_timestamp\": \"" << convert_timestamp(raw_data.first_timestamp) << "\",\n"
+        << "  \"last_timestamp\": " << convert_timestamp(raw_data.last_timestamp) << ",\n"
+        << "  \"Total bytes\": " << raw_data.total_bytes << ",\n"
+        << "  \"Total messages\": " << raw_data.total_messages << ",\n"
+        << "  \"Total anomaly count\": " << raw_data.total_anomalies_count << ",\n"
+        << "  \"Add Order without MPID Attribution message\": " << raw_data.existing_message_frequencies_raw[0] << ",\n"
+        << "  \"Broken Trade message: \": " << raw_data.existing_message_frequencies_raw[1] << ",\n"
+        << "  \"Add order - order executed with price message: \": " << raw_data.existing_message_frequencies_raw[2] << ",\n"
+        << "  \"Order delete message: \": " << raw_data.existing_message_frequencies_raw[3] << ",\n"
+        << "  \"Add order - order executed message: \": " << raw_data.existing_message_frequencies_raw[4] << ",\n"
+        << "  \"Add order - MPID Attribution message: \": " << raw_data.existing_message_frequencies_raw[5] << ",\n"
+        << "  \"Stock Trading action message: \": " << raw_data.existing_message_frequencies_raw[7] << ",\n"
+        << "  \"NOII message: \": " << raw_data.existing_message_frequencies_raw[8] << ",\n"
+        << "  \"LULD Action collar message: \": " << raw_data.existing_message_frequencies_raw[9] << ",\n"
+        << "  \"IPO Quoting Period update message: \": " << raw_data.existing_message_frequencies_raw[10] << ",\n"
+        << "  \"Market participant position message: \": " << raw_data.existing_message_frequencies_raw[11] << ",\n"
+        << "  \"Retail interest message: \": " << raw_data.existing_message_frequencies_raw[13] << ",\n"
+        << "  \"Direct Listing with Capital Raise message: \": " << raw_data.existing_message_frequencies_raw[14] << ",\n"
+        << "  \"Trade message: \": " << raw_data.existing_message_frequencies_raw[15] << ",\n"
+        << "  \"Cross Trade message: \": " << raw_data.existing_message_frequencies_raw[16] << ",\n"
+        << "  \"Stock Directory message: \": " << raw_data.existing_message_frequencies_raw[17] << ",\n"
+        << "  \"System Event message: \": " << raw_data.existing_message_frequencies_raw[18] << ",\n"
+        << "  \"Order replace message: \": " << raw_data.existing_message_frequencies_raw[20] << ",\n"
+        << "  \"MWCB Decline level message: \": " << raw_data.existing_message_frequencies_raw[21] << ",\n"
+        << "  \"MWCB status message: \": " << raw_data.existing_message_frequencies_raw[22] << ",\n"
+        << "  \"Order cancel message: \": " << raw_data.existing_message_frequencies_raw[23] << ",\n"
+        << "  \"Regular SHO Short sale price Test restricted Indicator message: \": " << raw_data.existing_message_frequencies_raw[24] << ",\n"
+        << "  \"Total operational halt messages count\": " << raw_data.operational_halt_message_count << ",\n"
+        << "}";
+
+    std::cout << oss.str();
+    return oss.str();
 }
 
 void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_descriptor()) {
@@ -101,8 +147,11 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_desc
     assert(binary_file_size >= sizeof(stock_directory_message));
 
     uint16_t message_length_value {0};
-    unsigned int total_anomalies_count {get_anomalies_count()};
-    unsigned int total_messages_count {get_total_messages_count()};
+    unsigned int total_anomalies_count = get_anomalies_count();
+    unsigned int total_messages_count = get_total_messages_count();
+    unsigned int operational_halt_message_count = get_operational_halt_message_type_count();
+    std::array<uint16_t, 26>& acceptable_message_types_array = get_acceptable_message_types_array();
+    unsigned long total_bytes = get_total_bytes_count();
     auto first_byte_mapped_file = mapped_file[0];
     auto second_byte_mapped_file = mapped_file[1];
 
@@ -117,30 +166,40 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_desc
         };
         message_length_value = decode_big_endian_message_length(temp_buffer);
         if (!acceptable_message_length.contains(message_length_value)) {
-            // check which type of message and increment its counter
             total_anomalies_count += 1;
             total_messages_count += 1;
+            total_bytes += message_length_value;
             i = second_byte_mapped_file_index + 1;
             continue;
         }
+        // valid length, so now check which message type based on the first character (first byte of every message body)
+        auto message_body_first_byte = mapped_file[second_byte_mapped_file_index + 1];
+        if (message_body_first_byte == 'h') {
+            operational_halt_message_count += 1;
+            total_messages_count += 1;
+            total_bytes += message_length_value;
+            i = second_byte_mapped_file_index + 1;
+            continue;
+        }
+
+        int message_body_first_byte_int {message_body_first_byte - 'A'};
+        if ((message_body_first_byte_int >= 0 && message_body_first_byte_int <= 25) && (acceptable_message_types_array[message_body_first_byte_int] != -1)) {
+            acceptable_message_types_array[message_body_first_byte_int] += 1;
+            total_messages_count += 1;
+            total_bytes += message_length_value;
+            i = second_byte_mapped_file_index + 1;
+            continue;
+        }
+        // if it reaches this part - it means that the message length was valid but message type not found. So, its an anomaly
+        total_anomalies_count += 1;
         total_messages_count += 1;
+        total_bytes += message_length_value;
         i = second_byte_mapped_file_index + 1;
     }
-
-    std::cout << "The total anomaly count is: " << total_anomalies_count << " \n";
-    close(fd);
+    Raw_data_for_json raw_data {acceptable_message_types_array, first_timestamp, last_timestamp, total_bytes, total_anomalies_count, total_messages_count, operational_halt_message_count};
+    convert_to_JSON(raw_data);
+    //close(fd);
     return;
-}
-
-std::string Itch_Stat_JSON::convert_to_JSON() const {
-    std::ostringstream oss;
-    oss << "{\n"
-        << "  \"first_timestamp\": \"" << convert_timestamp(first_timestamp) << "\",\n"
-        << "  \"last_timestamp\": " << convert_timestamp(last_timestamp) << ",\n"
-        << "  \"Total bytes\": " << total_bytes << ",\n"
-        << "  \"Total messages\": " << total_messages << ",\n"
-        << "}";
-    return oss.str();
 }
 
 void Itch_Stat_JSON::check_for_anomalies() {
