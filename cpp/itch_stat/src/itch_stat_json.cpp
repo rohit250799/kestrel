@@ -32,16 +32,12 @@ off_t get_binary_file_size(int fd=open_binary_file_and_get_descriptor()) {
     return sb.st_size;
 }
 
-uint64_t convert_timestamp(const std::array<uint8_t, 6>& timestamp) {
-    uint64_t result {0};
-    for (int i =0; i < 6; ++i) {
-        result = (result << 8) | timestamp[i];
-    }
-    return result;
-}
-
 uint16_t decode_big_endian_message_length(const uint8_t* ptr) {
     return (static_cast<uint16_t>(ptr[0]) << 8 | static_cast<uint16_t>(ptr[1]));
+}
+
+uint64_t decode_big_endian_message_timestamp(const uint8_t* ptr) {
+    return (static_cast<uint64_t>(ptr[0]) << 40 | static_cast<uint64_t>(ptr[1]) << 32 | static_cast<uint64_t>(ptr[2]) << 24 | static_cast<uint64_t>(ptr[3]) << 16 | static_cast<uint64_t>(ptr[4]) << 8 | static_cast<uint64_t>(ptr[5]));
 }
 
 Itch_Stat_JSON::Itch_Stat_JSON() {
@@ -78,6 +74,14 @@ unsigned long Itch_Stat_JSON::get_total_bytes_count() {
     return total_bytes;
 }
 
+std::array<uint8_t, 6> Itch_Stat_JSON::get_first_timestamp() {
+    return first_timestamp;
+}
+
+std::array<uint8_t, 6> Itch_Stat_JSON::get_last_timestamp() {
+    return last_timestamp;
+}
+
 char* Itch_Stat_JSON::mmap_extracted_binary_file(int fd=open_binary_file_and_get_descriptor()) {
     assert(fd != -1);
     long binary_file_size = get_binary_file_size();
@@ -94,10 +98,10 @@ std::string Itch_Stat_JSON::convert_to_JSON( const Raw_data_for_json& raw_data) 
     std::ostringstream oss;
     assert(!raw_data.existing_message_frequencies_raw.empty() && "Assertion failed: Array is empty \n");
     oss << "{\n"
-        << "  \"first_timestamp\": \"" << convert_timestamp(raw_data.first_timestamp) << "\",\n"
-        << "  \"last_timestamp\": " << convert_timestamp(raw_data.last_timestamp) << ",\n"
         << "  \"Total bytes\": " << raw_data.total_bytes << ",\n"
         << "  \"Total messages\": " << raw_data.total_messages << ",\n"
+        << "  \"First timestamp\": " << raw_data.first_timestamp << ",\n"
+        << "  \"Last timestamp\": " << raw_data.last_timestamp << ",\n"
         << "  \"Total anomaly count\": " << raw_data.total_anomalies_count << ",\n"
         << "  \"Add Order without MPID Attribution message\": " << raw_data.existing_message_frequencies_raw[0] << ",\n"
         << "  \"Broken Trade message: \": " << raw_data.existing_message_frequencies_raw[1] << ",\n"
@@ -147,6 +151,9 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_desc
     assert(binary_file_size >= sizeof(stock_directory_message));
 
     uint16_t message_length_value {0};
+    uint64_t message_timestamp_value {0};
+    auto first_timestamp = decode_big_endian_message_timestamp(get_first_timestamp().data());
+    auto last_timestamp = decode_big_endian_message_timestamp(get_last_timestamp().data());
     unsigned int total_anomalies_count = get_anomalies_count();
     unsigned int total_messages_count = get_total_messages_count();
     unsigned int operational_halt_message_count = get_operational_halt_message_type_count();
@@ -155,16 +162,46 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_desc
     auto first_byte_mapped_file = mapped_file[0];
     auto second_byte_mapped_file = mapped_file[1];
 
+    auto eighth_byte_mapped_file = mapped_file[7];
+    auto ninth_byte_mapped_file = mapped_file[8];
+    auto tenth_byte_mapped_file = mapped_file[9];
+    auto eleventh_byte_mapped_file = mapped_file[10];
+    auto twelveth_byte_mapped_file = mapped_file[11];
+    auto thirteenth_byte_mapped_file = mapped_file[12];
+
     for(std::size_t i = 0; i < binary_file_size; ) {
         size_t first_byte_mapped_file_index = i + message_length_value;
         size_t second_byte_mapped_file_index = i + message_length_value + 1;
         first_byte_mapped_file = mapped_file[first_byte_mapped_file_index];
         second_byte_mapped_file = mapped_file[second_byte_mapped_file_index];
+
         std::uint8_t temp_buffer[2] = {
             static_cast<uint8_t>(first_byte_mapped_file),
             static_cast<uint8_t>(second_byte_mapped_file)
         };
         message_length_value = decode_big_endian_message_length(temp_buffer);
+
+        std::array<uint8_t, 6> current_message_timestamp = {
+            static_cast<uint8_t>(eighth_byte_mapped_file),
+            static_cast<uint8_t>(ninth_byte_mapped_file),
+            static_cast<uint8_t>(tenth_byte_mapped_file),
+            static_cast<uint8_t>(eleventh_byte_mapped_file),
+            static_cast<uint8_t>(twelveth_byte_mapped_file),
+            static_cast<uint8_t>(thirteenth_byte_mapped_file)
+        };
+        message_timestamp_value = decode_big_endian_message_timestamp(current_message_timestamp.data());
+        if (message_timestamp_value < first_timestamp)
+            first_timestamp = message_timestamp_value;
+        if (message_timestamp_value > last_timestamp)
+            last_timestamp = message_timestamp_value;
+        eighth_byte_mapped_file = second_byte_mapped_file_index + 6;
+        ninth_byte_mapped_file = eighth_byte_mapped_file + 1;
+        tenth_byte_mapped_file = ninth_byte_mapped_file + 1;
+        eleventh_byte_mapped_file = tenth_byte_mapped_file + 1;
+        twelveth_byte_mapped_file = eleventh_byte_mapped_file + 1;
+        thirteenth_byte_mapped_file = twelveth_byte_mapped_file + 1;
+
+
         if (!acceptable_message_length.contains(message_length_value)) {
             total_anomalies_count += 1;
             total_messages_count += 1;
@@ -196,14 +233,10 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_desc
         total_bytes += message_length_value;
         i = second_byte_mapped_file_index + 1;
     }
+    assert(first_timestamp < last_timestamp && "Assertion failed: Last timestamp smaller than first timestamp \n");
     Raw_data_for_json raw_data {acceptable_message_types_array, first_timestamp, last_timestamp, total_bytes, total_anomalies_count, total_messages_count, operational_halt_message_count};
     convert_to_JSON(raw_data);
-    //close(fd);
     return;
-}
-
-void Itch_Stat_JSON::check_for_anomalies() {
-
 }
 
 Itch_Stat_JSON::~Itch_Stat_JSON() {

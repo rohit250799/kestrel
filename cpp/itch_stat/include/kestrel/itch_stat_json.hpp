@@ -275,8 +275,8 @@ struct direct_listing_with_capital_raise_message {
 
 struct Raw_data_for_json {
     std::array<uint16_t, 26> existing_message_frequencies_raw {};
-    std::array<uint8_t, 6> first_timestamp;
-    std::array<uint8_t, 6> last_timestamp;
+    uint64_t first_timestamp;
+    uint64_t last_timestamp;
     unsigned long total_bytes;
     unsigned int total_anomalies_count;
     unsigned int total_messages;
@@ -302,6 +302,8 @@ class Itch_Stat_JSON {
     unsigned int get_operational_halt_message_type_count();
     std::array<uint16_t, 26>& get_acceptable_message_types_array();
     unsigned long get_total_bytes_count();
+    std::array<uint8_t, 6> get_first_timestamp();
+    std::array<uint8_t, 6> get_last_timestamp();
     void parse_mmap_binary_file(int fd);
     long get_total_bytes();
     std::string convert_to_JSON(const Raw_data_for_json& raw_data) const;
