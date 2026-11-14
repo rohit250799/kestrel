@@ -50,3 +50,6 @@ my_internal_notes.md
 
 #build directory and other unnecessary things after Cmake migtation successful
 build/
+
+#breakpoints
+bp.txt

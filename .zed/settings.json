@@ -1,0 +1,12 @@
+{
+  "lsp": {
+    "clangd": {
+      "initialization_options": {
+        "fallbackFlags": ["-std=c++17"]
+      },
+      "arguments": [
+        "--compile-commands-dir=build"
+      ]
+    }
+  }
+}

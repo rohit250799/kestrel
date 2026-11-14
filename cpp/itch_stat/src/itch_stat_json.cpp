@@ -247,4 +247,12 @@ Itch_Stat_JSON::~Itch_Stat_JSON() {
     close(fd);
 }
 
+Itch_Stat_JSON::~Itch_Stat_JSON() {
+    char* addr = mmap_extracted_binary_file();
+    off_t binary_file_size {get_binary_file_size()};
+    int unmapping_result {munmap(addr, binary_file_size)};
+    assert(unmapping_result == 0 && "Assertion failed: Memory unmap not succcesful \n");
+    close(fd);
+}
+
 }
