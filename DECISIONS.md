@@ -11,3 +11,8 @@ The following character codes represent unacceptable message_types:'G', 'M', 'T'
  
 - if the length of the message is valid, we would have to check whether this particular message type exists in the array (condition: the message's first byte character mapped index in the array should be >= 0). 
 If it does, increment the value of that particular index. Else, increment the anomaly count, total message count, total bytes etc. and move to the next message's length.
+
+- fixed the timestamps issue in ITCH Stat JSON - in all message types, the fourth element in message body is timestamp. Timstamp is encoded in Big-endian format and each timestamp consumes 6 bytes. The bytes are stored in a fixed size array inside the class by member variables as uint8_t types. Once the bytes are selected, they are sent to the decode_big_endian_message_timestamp function which reconstructs a 48-bit timstamp as a uint64_t value and returns it. There is no need to mask the upper bits exclusively since the function constructs the correct numerical value from big-endian bytes. The compiler and platform handle its in-memory representation. Using the biggest and smallest possible sentinel values for the first and last timestamps respectively to help with the comparison and at the end of the loop, passing the uint64_t values of first and last timestamps to the JSON conversion function before its printed to the screen
+
+- Total messages number is significantly higher than what the individual message types sum up to since there are multiple unacceptable messages 
+with varying lengths which have not been considered into the calculation
