@@ -14,4 +14,5 @@ Load breakpoint from file bp.txt:
 Enter the debugger shell and use the command - source bp.txt to load the breakpoints
 
 How the ITCH stat results are shown in JSON format (with each message type frequency displayed as values)
-!(screenshots/itch_stat_json.png)[Itch Stat Json display]
+![Itch Stat Json display](screenshots/itch_stat_json.png)
+
