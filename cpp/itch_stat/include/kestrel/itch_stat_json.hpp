@@ -5,8 +5,13 @@
 #include <unordered_set>
 #include <variant>
 #include "message_type_enums.h"
+#include "Errorcode.h"
 
 namespace kestrel::itch_stat_json {
+
+off_t get_binary_file_size(int fd);
+char* mmap_extracted_binary_file(int fd);
+uint16_t decode_big_endian_message_length(const uint8_t* ptr);
 
 struct stock_directory_message {
     char Message_type;
@@ -296,7 +301,7 @@ class Itch_Stat_JSON {
     public:
     Itch_Stat_JSON();
     ~Itch_Stat_JSON();
-    char* mmap_extracted_binary_file(int fd);
+    //char* mmap_extracted_binary_file(int fd);
     unsigned int get_anomalies_count();
     unsigned int get_total_messages_count();
     unsigned int get_operational_halt_message_type_count();

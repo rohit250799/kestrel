@@ -1,3 +1,5 @@
+#pragma once
+
 enum class System_Event_Message_event_code {
     Start_of_Messages = 'O',
     Start_of_System_hours = 'S',

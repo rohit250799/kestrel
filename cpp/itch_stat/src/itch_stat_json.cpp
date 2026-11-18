@@ -82,7 +82,7 @@ std::array<uint8_t, 6> Itch_Stat_JSON::get_last_timestamp() {
     return last_timestamp;
 }
 
-char* Itch_Stat_JSON::mmap_extracted_binary_file(int fd=open_binary_file_and_get_descriptor()) {
+char* mmap_extracted_binary_file(int fd=open_binary_file_and_get_descriptor()) {
     assert(fd != -1);
     long binary_file_size = get_binary_file_size();
     assert(binary_file_size > 0);
@@ -190,6 +190,7 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_desc
             static_cast<uint8_t>(thirteenth_byte_mapped_file)
         };
         message_timestamp_value = decode_big_endian_message_timestamp(current_message_timestamp.data());
+        
         if (message_timestamp_value < first_timestamp)
             first_timestamp = message_timestamp_value;
         if (message_timestamp_value > last_timestamp)

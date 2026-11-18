@@ -1,5 +1,6 @@
 #include <cstdint>
 
+#pragma once
 namespace kestrel::itch_stat_json {
 
 enum class Error_codes : uint8_t {
