@@ -1,5 +1,6 @@
 #include "kestrel/itch_filter.hpp"
-#include "kestrel/itch_stat_json.hpp"
+#include "kestrel/file_functions.hpp"
+#include "kestrel/Errorcode.h"
 #include <cassert>
 #include <cerrno>
 #include <cstdint>
@@ -35,7 +36,7 @@ bool check_if_filtered_file_exists(const std::filesystem::path f = "/media/codin
 bool ITCH_Filter::write_message_to_filtered_binary_file(char* message_start, uint16_t message_length, std::ofstream& ofs) {
     if (!ofs){
         std::cerr << errno;
-        throw itch_stat_json::Error_codes::IO_Error;
+        throw kestrel::io::Error_codes::IO_Error;
         return false;
     }
 
@@ -72,8 +73,8 @@ ITCH_Filter::ITCH_Filter() {
     SRH_messages_count = {0};
 }
 
-int fd = kestrel::itch_stat_json::open_binary_file_and_get_descriptor("/media/coding/Quant_projects/kestrel/12302019.NASDAQ_ITCH50");
-off_t binary_file_size = kestrel::itch_stat_json::get_binary_file_size(fd);
+int fd = kestrel::io::open_binary_file_and_get_descriptor("/media/coding/Quant_projects/kestrel/12302019.NASDAQ_ITCH50");
+off_t binary_file_size = kestrel::io::get_binary_file_size(fd);
 
 void ITCH_Filter::parse_mmap_unfiltered_binary_file(int fd) {
     assert(fd != -1);
@@ -81,8 +82,8 @@ void ITCH_Filter::parse_mmap_unfiltered_binary_file(int fd) {
     off_t binary_file_size;
 
     try {
-        mapped_file = itch_stat_json::mmap_extracted_binary_file(fd);
-        binary_file_size = itch_stat_json::get_binary_file_size(fd);
+        mapped_file = kestrel::io::mmap_extracted_binary_file(fd);
+        binary_file_size = kestrel::io::get_binary_file_size(fd);
     } catch (...) {
         close(fd);
         std::cerr << "Cannot mmap file \n";
@@ -110,7 +111,7 @@ void ITCH_Filter::parse_mmap_unfiltered_binary_file(int fd) {
             static_cast<uint8_t>(first_byte_mapped_file),
             static_cast<uint8_t>(second_byte_mapped_file)
         };
-        message_length_value = itch_stat_json::decode_big_endian_message_length(temp_buffer);
+        message_length_value = kestrel::io::decode_big_endian_message_length(temp_buffer);
 
         // checking all the existing SRH messages and writing them to the new binary file
         auto message_body_first_byte = mapped_file[second_byte_mapped_file_index + 1];

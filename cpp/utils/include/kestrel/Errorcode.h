@@ -1,7 +1,7 @@
 #include <cstdint>
 
 #pragma once
-namespace kestrel::itch_stat_json {
+namespace kestrel::io {
 
 enum class Error_codes : uint8_t {
     None = 0,
@@ -12,4 +12,4 @@ enum class Error_codes : uint8_t {
 
 [[nodiscard]] const char* to_string(Error_codes code) noexcept;
 
-}
+} // kestrel::io

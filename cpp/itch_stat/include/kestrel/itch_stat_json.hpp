@@ -5,7 +5,6 @@
 #include <unordered_set>
 #include <variant>
 #include "message_type_enums.h"
-#include "Errorcode.h"
 
 namespace kestrel::itch_stat_json {
 
