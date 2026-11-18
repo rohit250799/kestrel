@@ -1,4 +1,5 @@
 #include "kestrel/itch_stat_json.hpp"
+#include "kestrel/file_functions.hpp"
 #include "kestrel/Errorcode.h"
 #include <array>
 #include <cassert>
@@ -15,26 +16,8 @@
 
 namespace kestrel::itch_stat_json {
 
-int open_binary_file_and_get_descriptor(const char* binary_file_path="/media/coding/Quant_projects/kestrel/12302019.NASDAQ_ITCH50") {
-    int fd = open(binary_file_path, O_RDONLY);
-    if (fd == -1) {
-        throw kestrel::itch_stat_json::Error_codes::IO_Error;
-    }
-    return fd;
-}
-
-off_t get_binary_file_size(int fd=open_binary_file_and_get_descriptor()) {
-    assert(fd != -1 && "Assertion failed: file descriptor is negative \n");
-    struct stat sb;
-    if (fstat(fd, &sb) == -1) {
-        throw kestrel::itch_stat_json::Error_codes::IO_Error;
-    }
-    return sb.st_size;
-}
-
-uint16_t decode_big_endian_message_length(const uint8_t* ptr) {
-    return (static_cast<uint16_t>(ptr[0]) << 8 | static_cast<uint16_t>(ptr[1]));
-}
+const char* unfiltered_binary_file_path {"/media/coding/Quant_projects/kestrel/12302019.NASDAQ_ITCH50"};
+int fd = {kestrel::io::open_binary_file_and_get_descriptor(unfiltered_binary_file_path)};
 
 uint64_t decode_big_endian_message_timestamp(const uint8_t* ptr) {
     return (static_cast<uint64_t>(ptr[0]) << 40 | static_cast<uint64_t>(ptr[1]) << 32 | static_cast<uint64_t>(ptr[2]) << 24 | static_cast<uint64_t>(ptr[3]) << 16 | static_cast<uint64_t>(ptr[4]) << 8 | static_cast<uint64_t>(ptr[5]));
@@ -82,19 +65,7 @@ std::array<uint8_t, 6> Itch_Stat_JSON::get_last_timestamp() {
     return last_timestamp;
 }
 
-char* mmap_extracted_binary_file(int fd=open_binary_file_and_get_descriptor()) {
-    assert(fd != -1);
-    long binary_file_size = get_binary_file_size();
-    assert(binary_file_size > 0);
-    char* addr = static_cast<char*>(mmap(NULL, binary_file_size, PROT_READ, MAP_PRIVATE | MAP_NORESERVE, fd, 0));
-    if (addr == MAP_FAILED) {
-        close(fd);
-        throw kestrel::itch_stat_json::Error_codes::System_Error;
-    }
-    return addr;
-}
-
-std::string Itch_Stat_JSON::convert_to_JSON( const Raw_data_for_json& raw_data) const {
+std::string Itch_Stat_JSON::convert_to_JSON(const Raw_data_for_json& raw_data) const {
     std::ostringstream oss;
     assert(!raw_data.existing_message_frequencies_raw.empty() && "Assertion failed: Array is empty \n");
     oss << "{\n"
@@ -132,15 +103,15 @@ std::string Itch_Stat_JSON::convert_to_JSON( const Raw_data_for_json& raw_data) 
     return oss.str();
 }
 
-void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_descriptor()) {
+void Itch_Stat_JSON::parse_mmap_binary_file(int fd) {
     assert(fd != -1);
     char* mapped_file;
     off_t binary_file_size;
 
     try {
-        mapped_file = mmap_extracted_binary_file();
-        binary_file_size = get_binary_file_size();
-    } catch (const kestrel::itch_stat_json::Error_codes& e) {
+        mapped_file = kestrel::io::mmap_extracted_binary_file(fd);
+        binary_file_size = kestrel::io::get_binary_file_size(fd);
+    } catch (const kestrel::io::Error_codes& e) {
         if (int(e) == 3) {
             close(fd);
             std::cerr << "Cannot mmap file \n";
@@ -179,7 +150,7 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_desc
             static_cast<uint8_t>(first_byte_mapped_file),
             static_cast<uint8_t>(second_byte_mapped_file)
         };
-        message_length_value = decode_big_endian_message_length(temp_buffer);
+        message_length_value = kestrel::io::decode_big_endian_message_length(temp_buffer);
 
         std::array<uint8_t, 6> current_message_timestamp = {
             static_cast<uint8_t>(eighth_byte_mapped_file),
@@ -190,7 +161,7 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_desc
             static_cast<uint8_t>(thirteenth_byte_mapped_file)
         };
         message_timestamp_value = decode_big_endian_message_timestamp(current_message_timestamp.data());
-        
+
         if (message_timestamp_value < first_timestamp)
             first_timestamp = message_timestamp_value;
         if (message_timestamp_value > last_timestamp)
@@ -241,10 +212,10 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd=open_binary_file_and_get_desc
 }
 
 Itch_Stat_JSON::~Itch_Stat_JSON() {
-    char* addr = mmap_extracted_binary_file();
-    off_t binary_file_size {get_binary_file_size()};
-    int unmapping_result {munmap(addr, binary_file_size)};
-    assert(unmapping_result == 0 && "Assertion failed: Memory unmap not succcesful \n");
+    // char* addr = kestrel::io::mmap_extracted_binary_file(fd);
+    // off_t binary_file_size {kestrel::io::get_binary_file_size(fd)};
+    // int unmapping_result {munmap(addr, binary_file_size)};
+    // assert(unmapping_result == 0 && "Assertion failed: Memory unmap not succcesful \n");
     close(fd);
 }
 
