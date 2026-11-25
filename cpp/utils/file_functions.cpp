@@ -1,5 +1,7 @@
 #include <cassert>
+#include <cerrno>
 #include <fcntl.h>
+#include <iostream>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -13,12 +15,16 @@ int open_binary_file_and_get_descriptor(const char* binary_file_path="/media/cod
     int fd = open(binary_file_path, O_RDONLY);
     if (fd == -1) {
         throw kestrel::io::Error_codes::IO_Error;
+        std::cerr << "Error opening file" << errno << " \n";
     }
     return fd;
 }
 
-off_t get_binary_file_size(int fd=open_binary_file_and_get_descriptor()) {
-    assert(fd != -1 && "Assertion failed: file descriptor is negative \n");
+off_t get_binary_file_size(int fd) {
+    if (fd == -1) {
+        throw kestrel::io::Error_codes::IO_Error;
+        std::cerr << "Error opening file" << errno << " \n";
+    }
     struct stat sb;
     if (fstat(fd, &sb) == -1) {
         throw kestrel::io::Error_codes::IO_Error;
@@ -26,9 +32,9 @@ off_t get_binary_file_size(int fd=open_binary_file_and_get_descriptor()) {
     return sb.st_size;
 }
 
-char* mmap_extracted_binary_file(int fd=open_binary_file_and_get_descriptor()) {
+char* mmap_extracted_binary_file(int fd) {
     assert(fd != -1);
-    long binary_file_size = get_binary_file_size();
+    long binary_file_size = get_binary_file_size(fd);
     assert(binary_file_size > 0);
     char* addr = static_cast<char*>(mmap(NULL, binary_file_size, PROT_READ, MAP_PRIVATE | MAP_NORESERVE, fd, 0));
     if (addr == MAP_FAILED) {
