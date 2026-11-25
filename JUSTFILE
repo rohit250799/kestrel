@@ -22,8 +22,8 @@ debug: (build "debug")
 
 # ---- run -----------------------------------------------------------------
 
-run preset="release": (build preset)
-    sudo build/{{preset}}/kestrel
+run preset="release" *args: (build preset)
+    sudo build/{{preset}}/kestrel {{args}}
 
 # ---- debug -----------------------------------------------------------------
 
@@ -37,6 +37,7 @@ format: (configure "debug")
 
 clean:
     rm -rf build
+    rm 12302019.NASDAQ_ITCH50_filtered.bin
 
 clean-preset preset:
     rm -rf build/{{preset}}
