@@ -17,13 +17,13 @@
 namespace kestrel::itch_stat_json {
 
 const char* unfiltered_binary_file_path {"/media/coding/Quant_projects/kestrel/12302019.NASDAQ_ITCH50"};
-int fd = {kestrel::io::open_binary_file_and_get_descriptor(unfiltered_binary_file_path)};
 
 uint64_t decode_big_endian_message_timestamp(const uint8_t* ptr) {
     return (static_cast<uint64_t>(ptr[0]) << 40 | static_cast<uint64_t>(ptr[1]) << 32 | static_cast<uint64_t>(ptr[2]) << 24 | static_cast<uint64_t>(ptr[3]) << 16 | static_cast<uint64_t>(ptr[4]) << 8 | static_cast<uint64_t>(ptr[5]));
 }
 
 Itch_Stat_JSON::Itch_Stat_JSON() {
+    fd = {kestrel::io::open_binary_file_and_get_descriptor(unfiltered_binary_file_path)};
     acceptable_message_length = {12, 39, 25, 20, 26, 35, 12, 28, 21, 32, 40, 31, 36, 23, 19, 44, 19, 50, 20, 48};
     total_anomalies_count = {0};
     total_messages = {0};
@@ -119,7 +119,7 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd) {
         }
     }
 
-    assert(binary_file_size >= sizeof(stock_directory_message));
+    assert(binary_file_size >= sizeof(stock_directory_message)); // to be fixed
 
     uint16_t message_length_value {0};
     uint64_t message_timestamp_value {0};
@@ -212,10 +212,10 @@ void Itch_Stat_JSON::parse_mmap_binary_file(int fd) {
 }
 
 Itch_Stat_JSON::~Itch_Stat_JSON() {
-    // char* addr = kestrel::io::mmap_extracted_binary_file(fd);
-    // off_t binary_file_size {kestrel::io::get_binary_file_size(fd)};
-    // int unmapping_result {munmap(addr, binary_file_size)};
-    // assert(unmapping_result == 0 && "Assertion failed: Memory unmap not succcesful \n");
+    char* addr = kestrel::io::mmap_extracted_binary_file(fd);
+    off_t binary_file_size {kestrel::io::get_binary_file_size(fd)};
+    int unmapping_result {munmap(addr, binary_file_size)};
+    assert(unmapping_result == 0 && "Assertion failed: Memory unmap not succcesful \n");
     close(fd);
 }
 
